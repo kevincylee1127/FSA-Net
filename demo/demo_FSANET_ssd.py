@@ -42,10 +42,10 @@ def draw_axis(img, yaw, pitch, roll, tdx=None, tdy=None, size = 50):
     cv2.line(img, (int(tdx), int(tdy)), (int(x2),int(y2)),(0,255,0),3)
     cv2.line(img, (int(tdx), int(tdy)), (int(x3),int(y3)),(255,0,0),2)
 
-    return img
+    return img, pitch, yaw, roll
     
 def draw_results_ssd(detected,input_img,faces,ad,img_size,img_w,img_h,model,time_detection,time_network,time_plot):
-    
+    pitch, yaw, roll = 9999,9999,9999
     # loop over the detections
     if detected.shape[2]>0:
         for i in range(0, detected.shape[2]):
@@ -81,13 +81,13 @@ def draw_results_ssd(detected,input_img,faces,ad,img_size,img_w,img_h,model,time
                 p_result = model.predict(face)
                 
                 face = face.squeeze()
-                img = draw_axis(input_img[yw1:yw2 + 1, xw1:xw2 + 1, :], p_result[0][0], p_result[0][1], p_result[0][2])
+                img, pitch, yaw, roll = draw_axis(input_img[yw1:yw2 + 1, xw1:xw2 + 1, :], p_result[0][0], p_result[0][1], p_result[0][2])
                 
                 input_img[yw1:yw2 + 1, xw1:xw2 + 1, :] = img
                 
     cv2.imshow("result", input_img)
     
-    return input_img #,time_network,time_plot
+    return input_img, pitch, yaw, roll #,time_network,time_plot
 
 def main():
     try:
@@ -161,19 +161,36 @@ def main():
         "res10_300x300_ssd_iter_140000.caffemodel"])
     net = cv2.dnn.readNetFromCaffe(protoPath, modelPath)
 
-    # capture video
-    cap = cv2.VideoCapture(0)
-    cap.set(cv2.CAP_PROP_FRAME_WIDTH, 1024*1)
-    cap.set(cv2.CAP_PROP_FRAME_HEIGHT, 768*1)
-    
+    # capture camera
+    # cap = cv2.VideoCapture(0)
+    # cap.set(cv2.CAP_PROP_FRAME_WIDTH, 1024*1)
+    # cap.set(cv2.CAP_PROP_FRAME_HEIGHT, 768*1)
 
+    # capture video
+    out_dir = 'output'
+    if not os.path.exists(out_dir):
+        os.makedirs(out_dir)
+
+    cap = cv2.VideoCapture('../../data/2022-05-02GL_stopsign_May2_inside-Inside.mp4')
+    fourcc = cv2.VideoWriter_fourcc(*'MJPG')
+    fps = 10
+
+    width = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))  # float
+    height = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
+    out = cv2.VideoWriter('./output/output-06042022.avi',fourcc, fps, (width, height))
+    txt_out = open('./output/output-06042022.txt', 'w')
 
     print('Start detecting pose ...')
     detected_pre = np.empty((1,1,1))
 
-    while True:
+    frame_num = 1
+    # while True:
+    while (cap.isOpened()):
         # get video frame
         ret, input_img = cap.read()
+
+        if not ret:
+            break
 
         img_idx = img_idx + 1
         img_h, img_w, _ = np.shape(input_img)
@@ -200,17 +217,23 @@ def main():
 
             faces = np.empty((detected.shape[2], img_size, img_size, 3))
 
-            input_img = draw_results_ssd(detected,input_img,faces,ad,img_size,img_w,img_h,model,time_detection,time_network,time_plot)
+            input_img, pitch, yaw, roll = draw_results_ssd(detected,input_img,faces,ad,img_size,img_w,img_h,model,time_detection,time_network,time_plot)
             cv2.imwrite('img/'+str(img_idx)+'.png',input_img)
             
         else:
-            input_img = draw_results_ssd(detected,input_img,faces,ad,img_size,img_w,img_h,model,time_detection,time_network,time_plot)
+            input_img, pitch, yaw, roll = draw_results_ssd(detected,input_img,faces,ad,img_size,img_w,img_h,model,time_detection,time_network,time_plot)
 
 
         if detected.shape[2] > detected_pre.shape[2] or img_idx%(skip_frame*3) == 0:
             detected_pre = detected
 
         key = cv2.waitKey(1)
+
+        out.write(input_img)
+        txt_out.write(str(frame_num) + ' %f %f %f\n' % (yaw, pitch, roll))
+        frame_num += 1
+
+    cap.release()
         
 if __name__ == '__main__':
     main()
