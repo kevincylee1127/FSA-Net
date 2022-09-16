@@ -1,3 +1,4 @@
+import glob
 import os
 import cv2
 import sys
@@ -167,73 +168,89 @@ def main():
     # cap.set(cv2.CAP_PROP_FRAME_HEIGHT, 768*1)
 
     # capture video
-    out_dir = 'output'
+    out_dir = 'output/686XKM'
+    # out_dir = 'output/test'
     if not os.path.exists(out_dir):
         os.makedirs(out_dir)
 
-    cap = cv2.VideoCapture('../../data/2022-05-02GL_stopsign_May2_inside-Inside.mp4')
-    fourcc = cv2.VideoWriter_fourcc(*'MJPG')
-    fps = 10
+    dir_path_pattern = '../../videos/686XKM/*Inside.mp4'
+    # dir_path_pattern = '../../videos/*Inside.mp4'
+    result = glob.glob(dir_path_pattern)
+    for f in result:
+        base_name = os.path.basename(f)
+        print(f)
+        print(base_name)
 
-    width = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))  # float
-    height = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
-    out = cv2.VideoWriter('./output/output-06042022.avi',fourcc, fps, (width, height))
-    txt_out = open('./output/output-06042022.txt', 'w')
+        cap = cv2.VideoCapture(f)
+        fourcc = cv2.VideoWriter_fourcc(*'MJPG')
+        fps = 10
 
-    print('Start detecting pose ...')
-    detected_pre = np.empty((1,1,1))
+        width = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))  # float
+        height = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
+        out = cv2.VideoWriter('./'+out_dir+'/'+base_name+'.avi',fourcc, fps, (width, height))
+        txt_out = open('./'+out_dir+'/'+base_name+'.txt', 'w')
 
-    frame_num = 1
-    # while True:
-    while (cap.isOpened()):
-        # get video frame
-        ret, input_img = cap.read()
+        print('Start detecting pose ...')
+        detected_pre = np.empty((1,1,1))
 
-        if not ret:
-            break
+        frame_num = 1
+        # while True:
+        while (cap.isOpened()):
+            # get video frame
+            ret, input_img = cap.read()
 
-        img_idx = img_idx + 1
-        img_h, img_w, _ = np.shape(input_img)
+            if not ret:
+                break
 
-        
-        if img_idx==1 or img_idx%skip_frame == 0:
-            time_detection = 0
-            time_network = 0
-            time_plot = 0
-            
-            # detect faces using LBP detector
-            gray_img = cv2.cvtColor(input_img,cv2.COLOR_BGR2GRAY)
-            # detected = face_cascade.detectMultiScale(gray_img, 1.1)
-            # detected = detector.detect_faces(input_img)
-            # pass the blob through the network and obtain the detections and
-            # predictions
-            blob = cv2.dnn.blobFromImage(cv2.resize(input_img, (300, 300)), 1.0,
-                (300, 300), (104.0, 177.0, 123.0))
-            net.setInput(blob)
-            detected = net.forward()
+            img_idx = img_idx + 1
 
-            if detected_pre.shape[2] > 0 and detected.shape[2] == 0:
-                detected = detected_pre
+            x = 288
+            y = 0
 
-            faces = np.empty((detected.shape[2], img_size, img_size, 3))
-
-            input_img, pitch, yaw, roll = draw_results_ssd(detected,input_img,faces,ad,img_size,img_w,img_h,model,time_detection,time_network,time_plot)
-            cv2.imwrite('img/'+str(img_idx)+'.png',input_img)
-            
-        else:
-            input_img, pitch, yaw, roll = draw_results_ssd(detected,input_img,faces,ad,img_size,img_w,img_h,model,time_detection,time_network,time_plot)
+            crop_img = input_img[y:y + height, x:x + width]
+            process_img = crop_img
+            img_h, img_w, _ = np.shape(process_img)
 
 
-        if detected.shape[2] > detected_pre.shape[2] or img_idx%(skip_frame*3) == 0:
-            detected_pre = detected
+            if img_idx==1 or img_idx%skip_frame == 0:
+                time_detection = 0
+                time_network = 0
+                time_plot = 0
 
-        key = cv2.waitKey(1)
+                # detect faces using LBP detector
+                gray_img = cv2.cvtColor(process_img,cv2.COLOR_BGR2GRAY)
+                # detected = face_cascade.detectMultiScale(gray_img, 1.1)
+                # detected = detector.detect_faces(input_img)
+                # pass the blob through the network and obtain the detections and
+                # predictions
+                blob = cv2.dnn.blobFromImage(cv2.resize(process_img, (300, 300)), 1.0,
+                    (300, 300), (104.0, 177.0, 123.0))
+                net.setInput(blob)
+                detected = net.forward()
 
-        out.write(input_img)
-        txt_out.write(str(frame_num) + ' %f %f %f\n' % (yaw, pitch, roll))
-        frame_num += 1
+                if detected_pre.shape[2] > 0 and detected.shape[2] == 0:
+                    detected = detected_pre
 
-    cap.release()
+                faces = np.empty((detected.shape[2], img_size, img_size, 3))
+
+                process_img, pitch, yaw, roll = draw_results_ssd(detected,process_img,faces,ad,img_size,img_w,img_h,model,time_detection,time_network,time_plot)
+                cv2.imwrite('img/'+str(img_idx)+'.png',process_img)
+
+            else:
+                process_img, pitch, yaw, roll = draw_results_ssd(detected,process_img,faces,ad,img_size,img_w,img_h,model,time_detection,time_network,time_plot)
+
+
+            if detected.shape[2] > detected_pre.shape[2] or img_idx%(skip_frame*3) == 0:
+                detected_pre = detected
+
+            key = cv2.waitKey(1)
+
+            input_img[y:y + height, x:x + width] = process_img
+            out.write(input_img)
+            txt_out.write(str(frame_num) + ' %f %f %f\n' % (yaw, pitch, roll))
+            frame_num += 1
+
+        cap.release()
         
 if __name__ == '__main__':
     main()
