@@ -47,8 +47,15 @@ def draw_axis(img, yaw, pitch, roll, tdx=None, tdy=None, size = 50):
     
 def draw_results_ssd(detected,input_img,faces,ad,img_size,img_w,img_h,model,time_detection,time_network,time_plot):
     pitch, yaw, roll = 9999,9999,9999
+
+    # default driver index of faces
+    driverIdx = 9999
+    # default driver x coordinate
+    driverX = 0
+
     # loop over the detections
     if detected.shape[2]>0:
+
         for i in range(0, detected.shape[2]):
             # extract the confidence (i.e., probability) associated with the
             # prediction
@@ -61,31 +68,42 @@ def draw_results_ssd(detected,input_img,faces,ad,img_size,img_w,img_h,model,time
                 (h0, w0) = input_img.shape[:2]
                 box = detected[0, 0, i, 3:7] * np.array([w0, h0, w0, h0])
                 (startX, startY, endX, endY) = box.astype("int")
-                # print((startX, startY, endX, endY))
-                x1 = startX
-                y1 = startY
-                w = endX - startX
-                h = endY - startY
-                
-                x2 = x1+w
-                y2 = y1+h
 
-                xw1 = max(int(x1 - ad * w), 0)
-                yw1 = max(int(y1 - ad * h), 0)
-                xw2 = min(int(x2 + ad * w), img_w - 1)
-                yw2 = min(int(y2 + ad * h), img_h - 1)
-                
-                faces[i,:,:,:] = cv2.resize(input_img[yw1:yw2 + 1, xw1:xw2 + 1, :], (img_size, img_size))
-                faces[i,:,:,:] = cv2.normalize(faces[i,:,:,:], None, alpha=0, beta=255, norm_type=cv2.NORM_MINMAX)        
-                
-                face = np.expand_dims(faces[i,:,:,:], axis=0)
-                p_result = model.predict(face)
-                
-                face = face.squeeze()
-                img, pitch, yaw, roll = draw_axis(input_img[yw1:yw2 + 1, xw1:xw2 + 1, :], p_result[0][0], p_result[0][1], p_result[0][2])
-                
-                input_img[yw1:yw2 + 1, xw1:xw2 + 1, :] = img
-                
+                if driverX < startX:
+                    driverX = startX
+                    driverIdx = i
+
+        if driverIdx != 9999:
+
+            (h0, w0) = input_img.shape[:2]
+            box = detected[0, 0, driverIdx, 3:7] * np.array([w0, h0, w0, h0])
+            (startX, startY, endX, endY) = box.astype("int")
+            # print((startX, startY, endX, endY))
+            x1 = startX
+            y1 = startY
+            w = endX - startX
+            h = endY - startY
+
+            x2 = x1 + w
+            y2 = y1 + h
+
+            xw1 = max(int(x1 - ad * w), 0)
+            yw1 = max(int(y1 - ad * h), 0)
+            xw2 = min(int(x2 + ad * w), img_w - 1)
+            yw2 = min(int(y2 + ad * h), img_h - 1)
+
+            faces[driverIdx, :, :, :] = cv2.resize(input_img[yw1:yw2 + 1, xw1:xw2 + 1, :], (img_size, img_size))
+            faces[driverIdx, :, :, :] = cv2.normalize(faces[driverIdx, :, :, :], None, alpha=0, beta=255, norm_type=cv2.NORM_MINMAX)
+
+            face = np.expand_dims(faces[driverIdx, :, :, :], axis=0)
+            p_result = model.predict(face)
+
+            face = face.squeeze()
+            img, pitch, yaw, roll = draw_axis(input_img[yw1:yw2 + 1, xw1:xw2 + 1, :], p_result[0][0], p_result[0][1], p_result[0][2])
+
+            input_img[yw1:yw2 + 1, xw1:xw2 + 1, :] = img
+
+
     cv2.imshow("result", input_img)
     
     return input_img, pitch, yaw, roll #,time_network,time_plot
@@ -208,7 +226,7 @@ def main():
             y = 0
 
             crop_img = input_img[y:y + height, x:x + width]
-            process_img = crop_img
+            process_img = input_img
             img_h, img_w, _ = np.shape(process_img)
 
 
@@ -245,7 +263,8 @@ def main():
 
             key = cv2.waitKey(1)
 
-            input_img[y:y + height, x:x + width] = process_img
+            # merge img
+            # input_img[y:y + height, x:x + width] = process_img
             out.write(input_img)
             txt_out.write(str(frame_num) + ' %f %f %f\n' % (yaw, pitch, roll))
             frame_num += 1
