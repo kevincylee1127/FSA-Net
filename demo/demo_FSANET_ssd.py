@@ -69,7 +69,7 @@ def draw_results_ssd(detected,input_img,faces,ad,img_size,img_w,img_h,model,time
                 box = detected[0, 0, i, 3:7] * np.array([w0, h0, w0, h0])
                 (startX, startY, endX, endY) = box.astype("int")
 
-                if driverX < startX:
+                if driverX < startX and (w0 >= endX or h0 >= endY):
                     driverX = startX
                     driverIdx = i
 
@@ -186,12 +186,12 @@ def main():
     # cap.set(cv2.CAP_PROP_FRAME_HEIGHT, 768*1)
 
     # capture video
-    out_dir = 'output/686XKM'
+    out_dir = 'output/9AA315'
     # out_dir = 'output/test'
     if not os.path.exists(out_dir):
         os.makedirs(out_dir)
 
-    dir_path_pattern = '../../videos/686XKM/*Inside.mp4'
+    dir_path_pattern = '../../videos/9AA315/*Inside.mp4'
     # dir_path_pattern = '../../videos/*Inside.mp4'
     result = glob.glob(dir_path_pattern)
     for f in result:
